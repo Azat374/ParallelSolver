@@ -87,7 +87,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -106,12 +106,13 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;CMAKE_INTDIR=\"Debug\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <CudaCompile>
-      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(Include)</Include>
+      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(Include)</Include>
       <Defines>_WINDOWS;CMAKE_INTDIR="Debug";%(Defines)</Defines>
       <AdditionalOptions>%(AdditionalOptions) -std=c++17 -Xcompiler="/EHsc -Zi -Ob0"</AdditionalOptions>
+      <CodeGeneration>compute_50,sm_50</CodeGeneration>
       <CompileOut>$(IntDir)%(Filename).obj</CompileOut>
       <CudaRuntime>Static</CudaRuntime>
       <GPUDebugInfo>false</GPUDebugInfo>
@@ -124,7 +125,7 @@
       <Warning>W3</Warning>
     </CudaCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -151,7 +152,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -170,12 +171,13 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <CudaCompile>
-      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(Include)</Include>
+      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(Include)</Include>
       <Defines>_WINDOWS;NDEBUG;CMAKE_INTDIR="Release";%(Defines)</Defines>
       <AdditionalOptions>%(AdditionalOptions) -std=c++17 -Xcompiler="/EHsc -Ob2"</AdditionalOptions>
+      <CodeGeneration>compute_50,sm_50</CodeGeneration>
       <CompileOut>$(IntDir)%(Filename).obj</CompileOut>
       <CudaRuntime>Static</CudaRuntime>
       <GPUDebugInfo>false</GPUDebugInfo>
@@ -187,7 +189,7 @@
       <Warning>W3</Warning>
     </CudaCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -214,7 +216,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
@@ -233,12 +235,13 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <CudaCompile>
-      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(Include)</Include>
+      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(Include)</Include>
       <Defines>_WINDOWS;NDEBUG;CMAKE_INTDIR="MinSizeRel";%(Defines)</Defines>
       <AdditionalOptions>%(AdditionalOptions) -std=c++17 -Xcompiler="/EHsc -Ob1"</AdditionalOptions>
+      <CodeGeneration>compute_50,sm_50</CodeGeneration>
       <CompileOut>$(IntDir)%(Filename).obj</CompileOut>
       <CudaRuntime>Static</CudaRuntime>
       <GPUDebugInfo>false</GPUDebugInfo>
@@ -250,7 +253,7 @@
       <Warning>W3</Warning>
     </CudaCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -277,7 +280,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ExceptionHandling>Sync</ExceptionHandling>
@@ -295,12 +298,13 @@
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <CudaCompile>
-      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(Include)</Include>
+      <Include>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(Include)</Include>
       <Defines>_WINDOWS;NDEBUG;CMAKE_INTDIR="RelWithDebInfo";%(Defines)</Defines>
       <AdditionalOptions>%(AdditionalOptions) -std=c++17 -Xcompiler="/EHsc -Zi -Ob1"</AdditionalOptions>
+      <CodeGeneration>compute_50,sm_50</CodeGeneration>
       <CompileOut>$(IntDir)%(Filename).obj</CompileOut>
       <CudaRuntime>Static</CudaRuntime>
       <GPUDebugInfo>false</GPUDebugInfo>
@@ -312,7 +316,7 @@
       <Warning>W3</Warning>
     </CudaCompile>
     <Midl>
-      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Users\Admin\source\repos\ParallelSolver;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include;C:\Program Files (x86)\Microsoft SDKs\MPI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
       <HeaderFileName>%(Filename).h</HeaderFileName>
       <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
@@ -396,11 +400,16 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\main.cpp" />
-    <CudaCompile Include="..\bicgstab.cu" />
     <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\bicgstab_cpu.cpp" />
+    <CudaCompile Include="..\bicgstab_gpu.cu" />
+    <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\bicgstab_mpi.cpp" />
+    <CudaCompile Include="..\bicgstab_mpi_cuda.cu" />
+    <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\bicgstab_mpi_openmp.cpp" />
     <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\utils.cpp" />
-    <CudaCompile Include="..\preconditioner.cu" />
     <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\preconditioner_cpu.cpp" />
+    <CudaCompile Include="..\preconditioner_cuda.cu" />
+    <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\preconditioner_mpi.cpp" />
+    <CudaCompile Include="..\spmv_kernel.cu" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="C:\Users\Admin\source\repos\ParallelSolver\build\ZERO_CHECK.vcxproj">

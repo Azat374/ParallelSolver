@@ -7,18 +7,33 @@
     <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\bicgstab_cpu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\bicgstab_mpi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\bicgstab_mpi_openmp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\preconditioner_cpu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\Admin\source\repos\ParallelSolver\preconditioner_mpi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="..\bicgstab.cu">
+    <CudaCompile Include="..\bicgstab_gpu.cu">
       <Filter>Source Files</Filter>
     </CudaCompile>
-    <CudaCompile Include="..\preconditioner.cu">
+    <CudaCompile Include="..\bicgstab_mpi_cuda.cu">
+      <Filter>Source Files</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\preconditioner_cuda.cu">
+      <Filter>Source Files</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\spmv_kernel.cu">
       <Filter>Source Files</Filter>
     </CudaCompile>
   </ItemGroup>

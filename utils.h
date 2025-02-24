@@ -1,24 +1,17 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <vector>
+// Генерация плотной квадратной матрицы размера N x N.
+// Диагональные элементы устанавливаются равными 10.0, остальные – случайные дробные числа.
+void generateMatrix(double* A, int N);
 
-// Генерация плотной матрицы размером N x N (row-major)
-void generateDenseMatrix(std::vector<double>& A, int N);
-
-// Преобразование плотной матрицы в формат CSR
-void convertDenseToCSR(const std::vector<double>& A, int N,
-    std::vector<double>& values,
-    std::vector<int>& rowPtr,
-    std::vector<int>& colIdx);
-
-// Генерация вектора правой части системы b размера N
+// Генерация вектора правой части длины N со случайными целыми значениями.
 void generateVector(double* b, int N);
 
-// Функция для получения текущего времени (в секундах)
-double get_time();
-
-// Функция для печати вектора (для отладки)
+// Вывод вектора на экран.
 void printVector(const double* vec, int N);
+
+// Вывод матрицы на экран.
+void printMatrix(const double* A, int N);
 
 #endif // UTILS_H

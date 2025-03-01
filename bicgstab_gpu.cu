@@ -236,7 +236,10 @@ extern "C" void BiCGStab2_GPU(const double* A, double* x, const double* b, int N
         iter++;
     }
 
-    *iterCount = iter;
+    if (iterCount) {
+        *iterCount = iter;
+    }
+
     CUDA_CHECK(cudaMemcpy(x, d_x, N * sizeof(double), cudaMemcpyDeviceToHost));
 
     CUDA_CHECK(cudaFree(d_A));

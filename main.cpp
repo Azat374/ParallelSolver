@@ -1,103 +1,112 @@
 #include <iostream>
+#include <vector>
+#include <numeric>
 #include <mpi.h>
+#include <cmath>
+#include <cuda_runtime.h>
 #include "utils.h"
 
-// Объявления внешних функций
+// Внешние объявления функций BiCGStab(2)
 extern "C" void BiCGStab2_CPU(int N, const double* A, double* x, const double* b, double tol, int maxIter, int* iterCount);
 extern "C" void BiCGStab2_GPU(const double* A, double* x, const double* b, int N, double tol, int maxIter, int* iterCount);
 extern "C" void BiCGStab2_MPI(int N, const double* A, double* x, const double* b, double tol, int maxIter, int* iterCount);
 extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x, const double* b, double tol, int maxIter, int* iterCount);
 extern "C" void BiCGStab2_MPI_OpenMP(int N, const double* A, double* x, const double* b, double tol, int maxIter, int* iterCount);
 
+#define TRIALS 5
+
 int main(int argc, char** argv)
 {
-    setlocale(LC_ALL, "Russian");
     MPI_Init(&argc, &argv);
-
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // Размер системы (можно изменять для тестирования)
-    const int N = 512;
-    double* A = new double[N * N];
-    double* b = new double[N];
-    double* x_cpu = new double[N];
-    double* x_gpu = new double[N];
-    double* x_mpi = new double[N];
-    double* x_mpi_cuda = new double[N];
-    double* x_mpi_openmp = new double[N];
-    int iter_cpu = 0, iter_gpu = 0, iter_mpi = 0, iter_mpi_cuda = 0, iter_mpi_openmp = 0;
+    const int N = 1000;
+    double* A = new (std::nothrow) double[N * N];
+    double* b = new (std::nothrow) double[N];
+    double* x_cpu = new (std::nothrow) double[N]();
+    double* x_gpu = new (std::nothrow) double[N]();
+    double* x_mpi_4 = new (std::nothrow) double[N]();
+    double* x_mpi_8 = new (std::nothrow) double[N]();
+    double* x_mpi_12 = new (std::nothrow) double[N]();
+    double* x_mpi_cuda = new (std::nothrow) double[N]();
 
-    // Только процесс 0 генерирует данные
+    if (!A || !b || !x_cpu || !x_gpu || !x_mpi_4 || !x_mpi_8 || !x_mpi_12 || !x_mpi_cuda) {
+        std::cerr << "Ошибка выделения памяти!" << std::endl;
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+
     if (rank == 0) {
         generateMatrix(A, N);
         generateVector(b, N);
-        for (int i = 0; i < N; i++) {
-            x_cpu[i] = 0.0;
-            x_gpu[i] = 0.0;
-            x_mpi[i] = 0.0;
-            x_mpi_cuda[i] = 0.0;
-            x_mpi_openmp[i] = 0.0;
-        }
     }
 
-    // Распространение данных на все процессы
     MPI_Bcast(A, N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast(b, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    if (rank == 0) {
-        std::cout << "Запуск CPU-решателя BiCGStab2 с предобусловливанием..." << std::endl;
-    }
-    BiCGStab2_CPU(N, A, x_cpu, b, 1e-6, 1000, &iter_cpu);
-    if (rank == 0) {
-        std::cout << "CPU: найдено решение за " << iter_cpu << " итераций:" << std::endl;
-        printVector(x_cpu, N);
+    std::vector<double> times_cpu, times_gpu, times_mpi_4, times_mpi_8, times_mpi_12, times_mpi_cuda;
+
+    for (int trial = 0; trial < TRIALS; trial++) {
+        double start, end;
+
+        start = MPI_Wtime();
+        BiCGStab2_CPU(N, A, x_cpu, b, 1e-6, 1000, nullptr);
+        end = MPI_Wtime();
+        times_cpu.push_back(end - start);
+
+        start = MPI_Wtime();
+        BiCGStab2_GPU(A, x_gpu, b, N, 1e-6, 1000, nullptr);
+        end = MPI_Wtime();
+        times_gpu.push_back(end - start);
+
+        start = MPI_Wtime();
+        BiCGStab2_MPI(N, A, x_mpi_4, b, 1e-6, 1000, nullptr);
+        end = MPI_Wtime();
+        times_mpi_4.push_back(end - start);
+
+        start = MPI_Wtime();
+        BiCGStab2_MPI(N, A, x_mpi_8, b, 1e-6, 1000, nullptr);
+        end = MPI_Wtime();
+        times_mpi_8.push_back(end - start);
+
+        start = MPI_Wtime();
+        BiCGStab2_MPI(N, A, x_mpi_12, b, 1e-6, 1000, nullptr);
+        end = MPI_Wtime();
+        times_mpi_12.push_back(end - start);
+
+        start = MPI_Wtime();
+        BiCGStab2_MPI_CUDA(N, A, x_mpi_cuda, b, 1e-6, 1000, nullptr);
+        end = MPI_Wtime();
+        times_mpi_cuda.push_back(end - start);
     }
 
     if (rank == 0) {
-        std::cout << "Запуск GPU-решателя BiCGStab2 с предобусловливанием..." << std::endl;
-    }
-    BiCGStab2_GPU(A, x_gpu, b, N, 1e-6, 1000, &iter_gpu);
-    if (rank == 0) {
-        std::cout << "GPU: найдено решение за " << iter_gpu << " итераций:" << std::endl;
-        printVector(x_gpu, N);
-    }
+        auto avg = [](const std::vector<double>& times) {
+            return std::accumulate(times.begin(), times.end(), 0.0) / times.size();
+        };
 
-    if (rank == 0) {
-        std::cout << "Запуск MPI-решателя BiCGStab2 с предобусловливанием..." << std::endl;
-    }
-    BiCGStab2_MPI(N, A, x_mpi, b, 1e-6, 1000, &iter_mpi);
-    if (rank == 0) {
-        std::cout << "MPI: найдено решение за " << iter_mpi << " итераций:" << std::endl;
-        printVector(x_mpi, N);
-    }
+        double gflops_cpu = (2.0 * N * N) / (avg(times_cpu) * 1e9);
+        double gflops_gpu = (2.0 * N * N) / (avg(times_gpu) * 1e9);
+        double speedup_gpu = avg(times_cpu) / avg(times_gpu);
 
-    if (rank == 0) {
-        std::cout << "44Запуск MPI+CUDA-решателя BiCGStab2 с предобусловливанием..." << std::endl;
-    }
-    BiCGStab2_MPI_CUDA(N, A, x_mpi_cuda, b, 1e-6, 1000, &iter_mpi_cuda);
-    if (rank == 0) {
-        std::cout << "44MPI+CUDA: найдено решение за " << iter_mpi_cuda << " итераций:" << std::endl;
-        printVector(x_mpi_cuda, N);
-    }
-
-    if (rank == 0) {
-        std::cout << "55Запуск MPI+OpenMP-решателя BiCGStab2 с предобусловливанием..." << std::endl;
-    }
-    BiCGStab2_MPI_OpenMP(N, A, x_mpi_openmp, b, 1e-6, 1000, &iter_mpi_openmp);
-    if (rank == 0) {
-        std::cout << "55MPI+OpenMP: найдено решение за " << iter_mpi_openmp << " итераций:" << std::endl;
-        printVector(x_mpi_openmp, N);
+        std::cout << "\n--- Experimental Results ---" << std::endl;
+        std::cout << "CPU: " << avg(times_cpu) * 1000 << " ms, GFLOPS: " << gflops_cpu << std::endl;
+        std::cout << "GPU: " << avg(times_gpu) * 1000 << " ms, GFLOPS: " << gflops_gpu << ", Speedup: " << speedup_gpu << std::endl;
+        std::cout << "MPI (4 cores): " << avg(times_mpi_4) * 1000 << " ms, GFLOPS: " << (2.0 * N * N) / (avg(times_mpi_4) * 1e9) << std::endl;
+        std::cout << "MPI (8 cores): " << avg(times_mpi_8) * 1000 << " ms, GFLOPS: " << (2.0 * N * N) / (avg(times_mpi_8) * 1e9) << std::endl;
+        std::cout << "MPI (12 cores): " << avg(times_mpi_12) * 1000 << " ms, GFLOPS: " << (2.0 * N * N) / (avg(times_mpi_12) * 1e9) << std::endl;
+        std::cout << "MPI+CUDA: " << avg(times_mpi_cuda) * 1000 << " ms, GFLOPS: " << (2.0 * N * N) / (avg(times_mpi_cuda) * 1e9) << std::endl;
     }
 
     delete[] A;
     delete[] b;
     delete[] x_cpu;
     delete[] x_gpu;
-    delete[] x_mpi;
+    delete[] x_mpi_4;
+    delete[] x_mpi_8;
+    delete[] x_mpi_12;
     delete[] x_mpi_cuda;
-    delete[] x_mpi_openmp;
 
     MPI_Finalize();
     return 0;

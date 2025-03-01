@@ -140,7 +140,10 @@ extern "C" void BiCGStab2_MPI_OpenMP(int N, const double* A, double* x, const do
         iter++;
     }
     MPI_Gather(local_x, local_N, MPI_DOUBLE, x, local_N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    *iterCount = iter;
+    if (iterCount) {
+        *iterCount = iter;
+    }
+
 
     delete[] local_A;
     delete[] local_b;

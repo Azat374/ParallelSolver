@@ -3,21 +3,12 @@
 #include <omp.h>
 #include "preconditioner_cpu.h"
 
-// Улучшенная реализация BiCGStab(2) на CPU с ILU(0) предобусловливанием.
-// A – входная матрица (N x N) в формате row-major (неизменяемая)
-// x – начальное приближение и итоговое решение (массив длины N)
-// b – вектор правой части (массив длины N)
-// tol – требуемая относительная точность
-// maxIter – максимальное число итераций
-// iterCount – выходное число итераций
 extern "C" void BiCGStab2_CPU(int N, const double* A, double* x, const double* b, double tol, int maxIter, int* iterCount)
 {
-    // Создаем копию матрицы A для предобусловливания
     double* A_ilu = new double[N * N];
     for (int i = 0; i < N * N; i++) {
         A_ilu[i] = A[i];
     }
-    // Применяем ILU0 на CPU (in-place)
     ILU0_CPU(N, A_ilu);
 
     double* r = new double[N];
@@ -27,7 +18,6 @@ extern "C" void BiCGStab2_CPU(int N, const double* A, double* x, const double* b
     double* s = new double[N];
     double* t = new double[N];
 
-    // Вычисляем начальный остаток: r = b - A*x
     for (int i = 0; i < N; i++) {
         double sum = 0.0;
         for (int j = 0; j < N; j++) {
@@ -127,7 +117,9 @@ extern "C" void BiCGStab2_CPU(int N, const double* A, double* x, const double* b
         iter++;
     }
 
-    *iterCount = iter;
+    if (iterCount) {
+        *iterCount = iter; // Проверяем, не равен ли указатель nullptr
+    }
 
     delete[] r;
     delete[] r_hat;

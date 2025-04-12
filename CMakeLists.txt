@@ -32,4 +32,5 @@ add_executable(ParallelSolver
 )
 
 target_include_directories(ParallelSolver PRIVATE ${CUDA_INCLUDE_DIRS})
-target_link_libraries(ParallelSolver PRIVATE MPI::MPI_CXX ${CUDA_LIBRARIES})
+target_link_libraries(ParallelSolver PRIVATE MPI::MPI_CXX ${CUDA_LIBRARIES} cublas)
+

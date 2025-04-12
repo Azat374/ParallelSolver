@@ -1,8 +1,16 @@
-#ifndef PRECONDITIONER_MPI_H
+п»ї#ifndef PRECONDITIONER_MPI_H
 #define PRECONDITIONER_MPI_H
 
-// Применение ILU(0) предобусловливания с использованием MPI.
-// A – матрица системы (размер N x N), распределённая между процессами.
-extern "C" void ILU0_MPI(int N, double* A);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	// ILU(0) РїСЂРµРґРѕР±СѓСЃР»РѕРІР»РёРІР°РЅРёРµ СЃ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРµРј MPI РґР»СЏ СЂР°СЃРїСЂРµРґРµР»С‘РЅРЅРѕР№ РјР°С‚СЂРёС†С‹ A (NxN).
+	// РќР° 0-Рј РїСЂРѕС†РµСЃСЃРµ A вЂ“ РїРѕР»РЅР°СЏ РјР°С‚СЂРёС†Р°; Р·Р°С‚РµРј РїСЂРѕРёР·РІРѕРґРёС‚СЃСЏ СЂР°Р·Р±РёРІРєР° РїРѕ СЃС‚СЂРѕРєР°Рј.
+	void ILU0_MPI(int N, double* A);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PRECONDITIONER_MPI_H

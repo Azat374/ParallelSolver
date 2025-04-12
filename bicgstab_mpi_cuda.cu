@@ -1,244 +1,252 @@
-#include <mpi.h>
+﻿#include <mpi.h>
 #include <cuda_runtime.h>
+#include <cublas_v2.h>
 #include <cmath>
-#include <cstdlib>
 #include <cstring>
 #include "preconditioner_cuda.h"
-#include "spmv_kernel.h"
 #include "device_launch_parameters.h"
 
-// Kernel: dense matrix-vector multiplication for local block: y = A*x
-__global__ void denseMatVecLocal(const double* A, const double* x, double* y, int N, int local_N) {
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
-    if (row < local_N) {
-        double sum = 0.0;
-        for (int j = 0; j < N; j++) {
-            sum += A[row * N + j] * x[j];
-        }
-        y[row] = sum;
-    }
-}
-
-// Kernel: vector subtraction for local block: r = b - v
-__global__ void vecSubLocal(double* r, const double* b, const double* v, int local_N) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < local_N)
-        r[i] = b[i] - v[i];
-}
-
-// Kernel: update p: p = r + beta*(p - omega*v)
+// Кернелы для локальных операций
 __global__ void updatePLocal(double* p, const double* r, const double* v, double beta, double omega, int local_N) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < local_N)
         p[i] = r[i] + beta * (p[i] - omega * v[i]);
 }
 
-// Kernel: compute v = A * global_p for local block
 __global__ void computeVLocal(const double* A, const double* global_p, double* v, int N, int local_N) {
     int row = blockIdx.x * blockDim.x + threadIdx.x;
     if (row < local_N) {
         double sum = 0.0;
-        for (int j = 0; j < N; j++) {
+        for (int j = 0; j < N; j++)
             sum += A[row * N + j] * global_p[j];
-        }
         v[row] = sum;
     }
 }
 
-// Kernel: compute s = r - alpha*v
 __global__ void computeSLocal(double* s, const double* r, const double* v, double alpha, int local_N) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < local_N)
         s[i] = r[i] - alpha * v[i];
 }
 
-// Kernel: update x: x = x + alpha*p
-__global__ void updateXLocal(double* x, const double* p, double alpha, int local_N) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < local_N)
-        x[i] += alpha * p[i];
-}
-
-// Kernel: update x fully: x = x + alpha*p + omega*s
 __global__ void updateXFullLocal(double* x, const double* p, const double* s, double alpha, double omega, int local_N) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < local_N)
         x[i] += alpha * p[i] + omega * s[i];
 }
 
-// Kernel: update r: r = s - omega*t
 __global__ void updateRLocal(double* r, const double* s, const double* t, double omega, int local_N) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < local_N)
         r[i] = s[i] - omega * t[i];
 }
 
-// Kernel: compute t = A * s for local block
-__global__ void computeTLocal(const double* A, const double* s, double* t, int N, int local_N) {
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
-    if (row < local_N) {
-        double sum = 0.0;
-        for (int j = 0; j < N; j++) {
-            sum += A[row * N + j] * s[j];
-        }
-        t[row] = sum;
-    }
-}
-
-extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x, const double* b, double tol, int maxIter, int* iterCount)
+extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
+    const double* b, double tol, int maxIter, int* iterCount)
 {
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int local_N = N / size;
-    double* local_A = new double[local_N * N];
-    double* local_b = new double[local_N];
-    double* local_x = new double[local_N];
-    memset(local_x, 0, local_N * sizeof(double));
+    // Разделение данных между процессами
+    int base = N / size;
+    int rem = N % size;
+    int local_N = base + (rank < rem ? 1 : 0);
 
-    MPI_Scatter(A, local_N * N, MPI_DOUBLE, local_A, local_N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Scatter(b, local_N, MPI_DOUBLE, local_b, local_N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    // Массивы для Scatterv/Gatherv (выделяются один раз)
+    int* counts = new int[size];
+    int* displs = new int[size];
+    int* counts_b = new int[size];
+    int* displs_b = new int[size];
+    for (int r = 0; r < size; r++) {
+        counts[r] = (base + (r < rem ? 1 : 0)) * N;
+        displs[r] = (r * base + (r < rem ? r : rem)) * N;
+        counts_b[r] = base + (r < rem ? 1 : 0);
+        displs_b[r] = r * base + (r < rem ? r : rem);
+    }
 
+    // Выделение памяти на CPU
+    double* local_A = new double[counts[rank]];
+    double* local_b = new double[counts_b[rank]];
+    double* local_x = new double[counts_b[rank]];
+    memset(local_x, 0, counts_b[rank] * sizeof(double));
+
+    // Распределение данных
+    MPI_Scatterv(A, counts, displs, MPI_DOUBLE, local_A, counts[rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(b, counts_b, displs_b, MPI_DOUBLE, local_b, counts_b[rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    // Выбор GPU
+    int devCount = 0;
+    cudaGetDeviceCount(&devCount);
+    cudaSetDevice(rank % devCount);
+
+    // Создание CUDA потока и cuBLAS хэндла
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+    cublasHandle_t handle;
+    cublasCreate(&handle);
+    cublasSetStream(handle, stream);
+
+    // Выделение памяти на GPU (один раз перед циклом)
     double* d_A, * d_x, * d_b, * d_r, * d_p, * d_v, * d_s, * d_t;
-    cudaMalloc((void**)&d_A, local_N * N * sizeof(double));
-    cudaMalloc((void**)&d_x, local_N * sizeof(double));
-    cudaMalloc((void**)&d_b, local_N * sizeof(double));
-    cudaMalloc((void**)&d_r, local_N * sizeof(double));
-    cudaMalloc((void**)&d_p, local_N * sizeof(double));
-    cudaMalloc((void**)&d_v, local_N * sizeof(double));
-    cudaMalloc((void**)&d_s, local_N * sizeof(double));
-    cudaMalloc((void**)&d_t, local_N * sizeof(double));
+    double* d_global_p; // Для коллективных операций
+    double* h_p_buffer = new double[counts_b[rank]]; // Буфер для передачи p
+    double* h_global_p = new double[N]; // Буфер для собранного p
 
-    cudaMemcpy(d_A, local_A, local_N * N * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_x, local_x, local_N * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_b, local_b, local_N * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMalloc(&d_A, counts[rank] * sizeof(double));
+    cudaMalloc(&d_x, counts_b[rank] * sizeof(double));
+    cudaMalloc(&d_b, counts_b[rank] * sizeof(double));
+    cudaMalloc(&d_r, counts_b[rank] * sizeof(double));
+    cudaMalloc(&d_p, counts_b[rank] * sizeof(double));
+    cudaMalloc(&d_v, counts_b[rank] * sizeof(double));
+    cudaMalloc(&d_s, counts_b[rank] * sizeof(double));
+    cudaMalloc(&d_t, counts_b[rank] * sizeof(double));
+    cudaMalloc(&d_global_p, N * sizeof(double));
 
-    // ��������� ILU0 �� GPU ��� ���������� �����
+    // Копирование данных на GPU (асинхронно)
+    cudaMemcpyAsync(d_A, local_A, counts[rank] * sizeof(double), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(d_b, local_b, counts_b[rank] * sizeof(double), cudaMemcpyHostToDevice, stream);
+    cudaMemsetAsync(d_x, 0, counts_b[rank] * sizeof(double), stream);
+    cudaStreamSynchronize(stream); // Ждем завершения копирования
+
+    // Факторизация локальной части A на GPU
     ILU0_GPU(local_N, d_A);
 
+    // Настройка размеров для CUDA кернелов
     int blockSize = 256;
     int gridSize = (local_N + blockSize - 1) / blockSize;
 
-    denseMatVecLocal << <gridSize, blockSize >> > (d_A, d_x, d_v, N, local_N);
-    cudaDeviceSynchronize();
-    vecSubLocal << <gridSize, blockSize >> > (d_r, d_b, d_v, local_N);
-    cudaDeviceSynchronize();
-    cudaMemcpy(d_p, d_r, local_N * sizeof(double), cudaMemcpyDeviceToDevice);
+    // Инициализация: r = b (так как x = 0)
+    cudaMemcpyAsync(d_r, d_b, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(d_p, d_r, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToDevice, stream);
 
+    // Начальные параметры для BiCGStab
     double alpha = 1.0, omega = 1.0, rho_old = 1.0;
     int iter = 0;
+
+    // Вычисление нормы b с использованием cuBLAS
     double local_normb = 0.0;
-    double* h_b_local = new double[local_N];
-    cudaMemcpy(h_b_local, d_b, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-    for (int i = 0; i < local_N; i++) {
-        local_normb += h_b_local[i] * h_b_local[i];
-    }
-    double global_normb;
+    cublasDnrm2(handle, local_N, d_b, 1, &local_normb);
+    local_normb = local_normb * local_normb; // Квадрат нормы
+
+    double global_normb = 0.0;
     MPI_Allreduce(&local_normb, &global_normb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     global_normb = sqrt(global_normb);
+
     if (global_normb < 1e-10) global_normb = 1.0;
-    delete[] h_b_local;
 
+    // Итерационный процесс BiCGStab
     while (iter < maxIter) {
+        // Вычисление rho = (r_hat, r) с использованием cuBLAS
         double local_rho = 0.0;
-        double* h_r_local = new double[local_N];
-        cudaMemcpy(h_r_local, d_r, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-        for (int i = 0; i < local_N; i++) {
-            local_rho += h_r_local[i] * h_r_local[i];
-        }
-        delete[] h_r_local;
-        double rho;
+        cublasDdot(handle, local_N, d_r, 1, d_r, 1, &local_rho);
+
+        double rho = 0.0;
         MPI_Allreduce(&local_rho, &rho, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
         if (fabs(rho) < tol) break;
+
+        // Вычисление beta и обновление p
         double beta = (iter == 0) ? 0.0 : (rho / rho_old) * (alpha / omega);
-        updatePLocal << <gridSize, blockSize >> > (d_p, d_r, d_v, beta, omega, local_N);
-        cudaDeviceSynchronize();
+        updatePLocal << <gridSize, blockSize, 0, stream >> > (d_p, d_r, d_v, beta, omega, local_N);
 
-        double* global_p = new double[N];
-        double* h_p_local = new double[local_N];
-        cudaMemcpy(h_p_local, d_p, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-        MPI_Allgather(h_p_local, local_N, MPI_DOUBLE, global_p, local_N, MPI_DOUBLE, MPI_COMM_WORLD);
-        delete[] h_p_local;
+        // Сбор всех p от всех процессов
+        cudaMemcpyAsync(h_p_buffer, d_p, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream);
+        cudaStreamSynchronize(stream);
 
-        computeVLocal << <gridSize, blockSize >> > (d_A, global_p, d_v, N, local_N);
-        cudaDeviceSynchronize();
-        delete[] global_p;
+        MPI_Allgatherv(h_p_buffer, counts_b[rank], MPI_DOUBLE,
+            h_global_p, counts_b, displs_b, MPI_DOUBLE, MPI_COMM_WORLD);
 
+        cudaMemcpyAsync(d_global_p, h_global_p, N * sizeof(double), cudaMemcpyHostToDevice, stream);
+
+        // Вычисление v = A * p
+        computeVLocal << <gridSize, blockSize, 0, stream >> > (d_A, d_global_p, d_v, N, local_N);
+
+        // Вычисление dot product (r_hat, v)
         double local_rhat_dot_v = 0.0;
-        double* h_rhat_local = new double[local_N];
-        double* h_v_local = new double[local_N];
-        cudaMemcpy(h_rhat_local, d_r, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-        cudaMemcpy(h_v_local, d_v, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-        for (int i = 0; i < local_N; i++) {
-            local_rhat_dot_v += h_rhat_local[i] * h_v_local[i];
-        }
-        delete[] h_rhat_local; delete[] h_v_local;
-        double rhat_dot_v;
-        MPI_Allreduce(&local_rhat_dot_v, &rhat_dot_v, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        if (fabs(rhat_dot_v) < tol) break;
-        alpha = rho / rhat_dot_v;
-        computeSLocal << <gridSize, blockSize >> > (d_s, d_r, d_v, alpha, local_N);
-        cudaDeviceSynchronize();
+        cublasDdot(handle, local_N, d_r, 1, d_v, 1, &local_rhat_dot_v);
 
-        double local_norm_s = 0.0;
-        double* h_s_local = new double[local_N];
-        cudaMemcpy(h_s_local, d_s, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-        for (int i = 0; i < local_N; i++) {
-            local_norm_s += h_s_local[i] * h_s_local[i];
-        }
-        double norm_s = sqrt(local_norm_s);
-        delete[] h_s_local;
+        double rhat_dot_v = 0.0;
+        MPI_Allreduce(&local_rhat_dot_v, &rhat_dot_v, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+        if (fabs(rhat_dot_v) < tol) break;
+
+        // Вычисление alpha и s
+        alpha = rho / rhat_dot_v;
+        computeSLocal << <gridSize, blockSize, 0, stream >> > (d_s, d_r, d_v, alpha, local_N);
+
+        // Проверка нормы s
+        double local_norm_s_sq = 0.0;
+        cublasDnrm2(handle, local_N, d_s, 1, &local_norm_s_sq);
+        local_norm_s_sq = local_norm_s_sq * local_norm_s_sq;
+
+        double global_norm_s_sq = 0.0;
+        MPI_Allreduce(&local_norm_s_sq, &global_norm_s_sq, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        double norm_s = sqrt(global_norm_s_sq);
+
         if (norm_s / global_normb < tol) {
-            updateXLocal << <gridSize, blockSize >> > (d_x, d_p, alpha, local_N);
-            cudaDeviceSynchronize();
+            // x = x + alpha * p
+            double alpha_val = alpha;
+            cublasDaxpy(handle, local_N, &alpha_val, d_p, 1, d_x, 1);
             iter++;
             break;
         }
-        computeTLocal << <gridSize, blockSize >> > (d_A, d_s, d_t, N, local_N);
-        cudaDeviceSynchronize();
 
+        // Вычисление t = A * s
+        // Сначала соберем все s
+        cudaMemcpyAsync(h_p_buffer, d_s, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream);
+        cudaStreamSynchronize(stream);
+
+        MPI_Allgatherv(h_p_buffer, counts_b[rank], MPI_DOUBLE,
+            h_global_p, counts_b, displs_b, MPI_DOUBLE, MPI_COMM_WORLD);
+
+        cudaMemcpyAsync(d_global_p, h_global_p, N * sizeof(double), cudaMemcpyHostToDevice, stream);
+
+        computeVLocal << <gridSize, blockSize, 0, stream >> > (d_A, d_global_p, d_t, N, local_N);
+
+        // Вычисление t_dot_s и t_dot_t
         double local_t_dot_s = 0.0, local_t_dot_t = 0.0;
-        double* h_t_local = new double[local_N];
-        double* h_s2_local = new double[local_N];
-        cudaMemcpy(h_t_local, d_t, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-        cudaMemcpy(h_s2_local, d_s, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-        for (int i = 0; i < local_N; i++) {
-            local_t_dot_s += h_t_local[i] * h_s2_local[i];
-            local_t_dot_t += h_t_local[i] * h_t_local[i];
-        }
-        delete[] h_t_local; delete[] h_s2_local;
-        double t_dot_s, t_dot_t;
+        cublasDdot(handle, local_N, d_t, 1, d_s, 1, &local_t_dot_s);
+        cublasDdot(handle, local_N, d_t, 1, d_t, 1, &local_t_dot_t);
+
+        double t_dot_s = 0.0, t_dot_t = 0.0;
         MPI_Allreduce(&local_t_dot_s, &t_dot_s, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(&local_t_dot_t, &t_dot_t, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
         if (fabs(t_dot_t) < tol) break;
-        omega = t_dot_s / t_dot_t;
-        updateXFullLocal << <gridSize, blockSize >> > (d_x, d_p, d_s, alpha, omega, local_N);
-        cudaDeviceSynchronize();
 
-        updateRLocal << <gridSize, blockSize >> > (d_r, d_s, d_t, omega, local_N);
-        cudaDeviceSynchronize();
+        // Вычисление omega
+        omega = t_dot_s / (t_dot_t + 1e-16);
 
-        double local_norm_r = 0.0;
-        double* h_r_new_local = new double[local_N];
-        cudaMemcpy(h_r_new_local, d_r, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-        for (int i = 0; i < local_N; i++) {
-            local_norm_r += h_r_new_local[i] * h_r_new_local[i];
-        }
-        double norm_r = sqrt(local_norm_r);
-        delete[] h_r_new_local;
+        // Обновление x и r
+        updateXFullLocal << <gridSize, blockSize, 0, stream >> > (d_x, d_p, d_s, alpha, omega, local_N);
+        updateRLocal << <gridSize, blockSize, 0, stream >> > (d_r, d_s, d_t, omega, local_N);
+
+        // Проверка нормы r
+        double local_norm_r_sq = 0.0;
+        cublasDnrm2(handle, local_N, d_r, 1, &local_norm_r_sq);
+        local_norm_r_sq = local_norm_r_sq * local_norm_r_sq;
+
+        double global_norm_r_sq = 0.0;
+        MPI_Allreduce(&local_norm_r_sq, &global_norm_r_sq, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        double norm_r = sqrt(global_norm_r_sq);
+
         if (norm_r / global_normb < tol) break;
+
         rho_old = rho;
         iter++;
     }
 
-    if (iterCount) {
+    // Сбор результатов
+    cudaMemcpyAsync(local_x, d_x, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+
+    MPI_Gatherv(local_x, counts_b[rank], MPI_DOUBLE, x, counts_b, displs_b, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (iterCount)
         *iterCount = iter;
-    }
 
-    cudaMemcpy(local_x, d_x, local_N * sizeof(double), cudaMemcpyDeviceToHost);
-    MPI_Gather(local_x, local_N, MPI_DOUBLE, x, local_N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
+    // Освобождение ресурсов GPU
     cudaFree(d_A);
     cudaFree(d_x);
     cudaFree(d_b);
@@ -247,8 +255,19 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x, const doub
     cudaFree(d_v);
     cudaFree(d_s);
     cudaFree(d_t);
+    cudaFree(d_global_p);
 
+    cublasDestroy(handle);
+    cudaStreamDestroy(stream);
+
+    // Освобождение ресурсов CPU
     delete[] local_A;
     delete[] local_b;
     delete[] local_x;
+    delete[] counts;
+    delete[] displs;
+    delete[] counts_b;
+    delete[] displs_b;
+    delete[] h_p_buffer;
+    delete[] h_global_p;
 }

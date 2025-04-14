@@ -20,22 +20,6 @@
 
 const double eps = 1e-12;
 
-// --- Таймер на GPU --- 
-void gpuTimerStart(cudaEvent_t* start) {
-    cudaEventCreate(start);
-    cudaEventRecord(*start, 0);
-}
-
-float gpuTimerStop(cudaEvent_t start, cudaEvent_t stop) {
-    cudaEventCreate(&stop);
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    float elapsed;
-    cudaEventElapsedTime(&elapsed, start, stop);
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
-    return elapsed;
-}
 
 // --- Локальные кернелы ---
 // Обновление вектора: p = r + beta*(p - omega*v)

@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
 
 # Установка флагов для компиляции CUDA (укажите архитектуру вашей видеокарты, например, sm_75)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_50,code=sm_50")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_89,code=sm_89")
 
 # Явное указание путей к библиотекам CUDA (при необходимости)
 set(CUDA_LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib/x64/cudart.lib")

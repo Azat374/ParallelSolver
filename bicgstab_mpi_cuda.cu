@@ -5,6 +5,18 @@
 #include <cstring>
 #include "preconditioner_cuda.h"
 #include "device_launch_parameters.h"
+#include <iostream>
+
+#define CUDA_CHECK(call) \
+    do { \
+        cudaError_t err = call; \
+        if (err != cudaSuccess) { \
+            std::cerr << "CUDA ERROR in " << __FILE__ << ":" << __LINE__ \
+                      << " — " << cudaGetErrorString(err) << std::endl; \
+            exit(EXIT_FAILURE); \
+        } \
+    } while (0)
+
 
 // Кернелы для локальных операций
 __global__ void updatePLocal(double* p, const double* r, const double* v, double beta, double omega, int local_N) {
@@ -53,6 +65,12 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
     int rem = N % size;
     int local_N = base + (rank < rem ? 1 : 0);
 
+    if (rank == 0) {
+        std::cout << "DEBUG: Total N = " << N << ", size = " << size << std::endl;
+    }
+    std::cout << "Rank " << rank << ": local_N = " << local_N << std::endl;
+
+
     // Массивы для Scatterv/Gatherv (выделяются один раз)
     int* counts = new int[size];
     int* displs = new int[size];
@@ -77,8 +95,9 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
 
     // Выбор GPU
     int devCount = 0;
-    cudaGetDeviceCount(&devCount);
-    cudaSetDevice(rank % devCount);
+    CUDA_CHECK(cudaGetDeviceCount(&devCount));
+    CUDA_CHECK(cudaSetDevice(rank % devCount));
+    if (rank == 0) std::cout << "Available GPUs: " << devCount << std::endl;
 
     // Создание CUDA потока и cuBLAS хэндла
     cudaStream_t stream;
@@ -93,21 +112,21 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
     double* h_p_buffer = new double[counts_b[rank]]; // Буфер для передачи p
     double* h_global_p = new double[N]; // Буфер для собранного p
 
-    cudaMalloc(&d_A, counts[rank] * sizeof(double));
-    cudaMalloc(&d_x, counts_b[rank] * sizeof(double));
-    cudaMalloc(&d_b, counts_b[rank] * sizeof(double));
-    cudaMalloc(&d_r, counts_b[rank] * sizeof(double));
-    cudaMalloc(&d_p, counts_b[rank] * sizeof(double));
-    cudaMalloc(&d_v, counts_b[rank] * sizeof(double));
-    cudaMalloc(&d_s, counts_b[rank] * sizeof(double));
-    cudaMalloc(&d_t, counts_b[rank] * sizeof(double));
-    cudaMalloc(&d_global_p, N * sizeof(double));
+    CUDA_CHECK(cudaMalloc(&d_A, counts[rank] * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_x, counts_b[rank] * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_b, counts_b[rank] * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_r, counts_b[rank] * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_p, counts_b[rank] * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_v, counts_b[rank] * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_s, counts_b[rank] * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_t, counts_b[rank] * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&d_global_p, N * sizeof(double)));
 
     // Копирование данных на GPU (асинхронно)
-    cudaMemcpyAsync(d_A, local_A, counts[rank] * sizeof(double), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(d_b, local_b, counts_b[rank] * sizeof(double), cudaMemcpyHostToDevice, stream);
-    cudaMemsetAsync(d_x, 0, counts_b[rank] * sizeof(double), stream);
-    cudaStreamSynchronize(stream); // Ждем завершения копирования
+    CUDA_CHECK(cudaMemcpyAsync(d_A, local_A, counts[rank] * sizeof(double), cudaMemcpyHostToDevice, stream));
+    CUDA_CHECK(cudaMemcpyAsync(d_b, local_b, counts_b[rank] * sizeof(double), cudaMemcpyHostToDevice, stream));
+    CUDA_CHECK(cudaMemsetAsync(d_x, 0, counts_b[rank] * sizeof(double), stream));
+    CUDA_CHECK(cudaStreamSynchronize(stream)); // Ждем завершения копирования
 
     // Факторизация локальной части A на GPU
     ILU0_GPU(local_N, d_A);
@@ -117,8 +136,8 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
     int gridSize = (local_N + blockSize - 1) / blockSize;
 
     // Инициализация: r = b (так как x = 0)
-    cudaMemcpyAsync(d_r, d_b, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToDevice, stream);
-    cudaMemcpyAsync(d_p, d_r, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToDevice, stream);
+    CUDA_CHECK(cudaMemcpyAsync(d_r, d_b, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToDevice, stream));
+    CUDA_CHECK(cudaMemcpyAsync(d_p, d_r, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToDevice, stream));
 
     // Начальные параметры для BiCGStab
     double alpha = 1.0, omega = 1.0, rho_old = 1.0;
@@ -151,13 +170,13 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
         updatePLocal << <gridSize, blockSize, 0, stream >> > (d_p, d_r, d_v, beta, omega, local_N);
 
         // Сбор всех p от всех процессов
-        cudaMemcpyAsync(h_p_buffer, d_p, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream);
-        cudaStreamSynchronize(stream);
+        CUDA_CHECK(cudaMemcpyAsync(h_p_buffer, d_p, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream));
+        CUDA_CHECK(cudaStreamSynchronize(stream));
 
         MPI_Allgatherv(h_p_buffer, counts_b[rank], MPI_DOUBLE,
             h_global_p, counts_b, displs_b, MPI_DOUBLE, MPI_COMM_WORLD);
 
-        cudaMemcpyAsync(d_global_p, h_global_p, N * sizeof(double), cudaMemcpyHostToDevice, stream);
+        CUDA_CHECK(cudaMemcpyAsync(d_global_p, h_global_p, N * sizeof(double), cudaMemcpyHostToDevice, stream));
 
         // Вычисление v = A * p
         computeVLocal << <gridSize, blockSize, 0, stream >> > (d_A, d_global_p, d_v, N, local_N);
@@ -194,13 +213,13 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
 
         // Вычисление t = A * s
         // Сначала соберем все s
-        cudaMemcpyAsync(h_p_buffer, d_s, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream);
-        cudaStreamSynchronize(stream);
+        CUDA_CHECK(cudaMemcpyAsync(h_p_buffer, d_s, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream));
+        CUDA_CHECK(cudaStreamSynchronize(stream));
 
         MPI_Allgatherv(h_p_buffer, counts_b[rank], MPI_DOUBLE,
             h_global_p, counts_b, displs_b, MPI_DOUBLE, MPI_COMM_WORLD);
 
-        cudaMemcpyAsync(d_global_p, h_global_p, N * sizeof(double), cudaMemcpyHostToDevice, stream);
+        CUDA_CHECK(cudaMemcpyAsync(d_global_p, h_global_p, N * sizeof(double), cudaMemcpyHostToDevice, stream));
 
         computeVLocal << <gridSize, blockSize, 0, stream >> > (d_A, d_global_p, d_t, N, local_N);
 
@@ -238,27 +257,27 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
     }
 
     // Сбор результатов
-    cudaMemcpyAsync(local_x, d_x, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream);
-    cudaStreamSynchronize(stream);
-
+    CUDA_CHECK(cudaMemcpyAsync(local_x, d_x, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream));
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gatherv(local_x, counts_b[rank], MPI_DOUBLE, x, counts_b, displs_b, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     if (iterCount)
         *iterCount = iter;
 
     // Освобождение ресурсов GPU
-    cudaFree(d_A);
-    cudaFree(d_x);
-    cudaFree(d_b);
-    cudaFree(d_r);
-    cudaFree(d_p);
-    cudaFree(d_v);
-    cudaFree(d_s);
-    cudaFree(d_t);
-    cudaFree(d_global_p);
+    CUDA_CHECK(cudaFree(d_A));
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_b));
+    CUDA_CHECK(cudaFree(d_r));
+    CUDA_CHECK(cudaFree(d_p));
+    CUDA_CHECK(cudaFree(d_v));
+    CUDA_CHECK(cudaFree(d_s));
+    CUDA_CHECK(cudaFree(d_t));
+    CUDA_CHECK(cudaFree(d_global_p));
 
     cublasDestroy(handle);
-    cudaStreamDestroy(stream);
+    CUDA_CHECK(cudaStreamDestroy(stream));
 
     // Освобождение ресурсов CPU
     delete[] local_A;

@@ -56,3 +56,5 @@ void convertDenseToCSR(const double* A, int N, double** values, int* nnz, int** 
         (*rowPtr)[i + 1] = pos;
     }
 }
+
+

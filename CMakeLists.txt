@@ -29,7 +29,7 @@ add_executable(ParallelSolver
     preconditioner_cuda.cu 
     preconditioner_mpi.cpp 
     spmv_kernel.cu
-)
+ )
 
 target_include_directories(ParallelSolver PRIVATE ${CUDA_INCLUDE_DIRS})
 target_link_libraries(ParallelSolver PRIVATE MPI::MPI_CXX ${CUDA_LIBRARIES} cublas)

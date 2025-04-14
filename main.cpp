@@ -17,7 +17,7 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x, const doub
 extern "C" void BiCGStab2_MPI_OpenMP(int N, const double* A, double* x, const double* b,
     double tol, int maxIter, int* iterCount);
 
-#define TRIALS 5
+#define TRIALS 2
 
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
@@ -57,6 +57,23 @@ int main(int argc, char** argv) {
     if (rank == 0) {
         generateMatrix(A, N);
         generateVector(b, N);
+
+
+        // --- Вывод матрицы A ---
+        std::cout << "Matrix A (" << N << "x" << N << "):\n";
+        for (int i = 0; i < 10; ++i) {
+            for (int j = 0; j < 10; ++j) {
+                std::cout << A[i * N + j] << " ";
+            }
+            std::cout << "\n";
+        }
+
+        // --- Вывод вектора b ---
+        std::cout << "\nVector b (" << N << "):\n";
+        for (int i = 0; i < 10; ++i) {
+            std::cout << b[i] << " ";
+        }
+        std::cout << "\n\n";
     }
 
     // Передаем данные всем процессам
@@ -114,12 +131,17 @@ int main(int argc, char** argv) {
         double speedup_gpu = avg(times_cpu) / avg(times_gpu);
         double speedup_mpi = avg(times_cpu) / avg(times_mpi);
         double speedup_mpi_cuda = avg(times_cpu) / avg(times_mpi_cuda);
-
         std::cout << "\n--- Experimental Results (averaged over " << TRIALS << " trials) ---" << std::endl;
-        std::cout << "CPU: " << avg(times_cpu) * 1000 << " ms, GFLOPS: " << gflops_cpu << std::endl;
-        std::cout << "GPU: " << avg(times_gpu) * 1000 << " ms, GFLOPS: " << gflops_gpu << ", Speedup: " << speedup_gpu << std::endl;
-        std::cout << "MPI (" << size << " procs): " << avg(times_mpi) * 1000 << " ms, GFLOPS: " << gflops_mpi << ", Speedup: " << speedup_mpi << std::endl;
-        std::cout << "MPI+CUDA: " << avg(times_mpi_cuda) * 1000 << " ms, GFLOPS: " << gflops_mpi_cuda << ", Speedup: " << speedup_mpi_cuda << std::endl;
+        if (mode == "cpu")
+            std::cout << "CPU: " << avg(times_cpu) * 1000 << " ms, GFLOPS: " << gflops_cpu << std::endl;
+        else if (mode == "gpu")
+            std::cout << "GPU: " << avg(times_gpu) * 1000 << " ms, GFLOPS: " << gflops_gpu << ", Speedup: " << speedup_gpu << std::endl;
+        else if (mode == "mpi")
+            std::cout << "MPI (" << size << " procs): " << avg(times_mpi) * 1000 << " ms, GFLOPS: " << gflops_mpi << ", Speedup: " << speedup_mpi << std::endl;
+        else if (mode == "mpi+cuda")
+            std::cout << "MPI+CUDA: " << avg(times_mpi_cuda) * 1000 << " ms, GFLOPS: " << gflops_mpi_cuda << ", Speedup: " << speedup_mpi_cuda << std::endl;
+
+        
     }
 
     delete[] A;

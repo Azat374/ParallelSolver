@@ -18,4 +18,6 @@ void printMatrix(const double* A, int N);
 // На выходе: values – ненулевые элементы, nnz – число ненулевых, rowPtr (размер N+1) и colIdx.
 void convertDenseToCSR(const double* A, int N, double** values, int* nnz, int** rowPtr, int** colIdx);
 
+
+
 #endif // UTILS_H

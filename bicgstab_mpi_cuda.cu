@@ -65,6 +65,7 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
     int rem = N % size;
     int local_N = base + (rank < rem ? 1 : 0);
 
+
     if (rank == 0) {
         std::cout << "DEBUG: Total N = " << N << ", size = " << size << std::endl;
     }
@@ -89,6 +90,7 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
     double* local_x = new double[counts_b[rank]];
     memset(local_x, 0, counts_b[rank] * sizeof(double));
 
+    
     // Распределение данных
     MPI_Scatterv(A, counts, displs, MPI_DOUBLE, local_A, counts[rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Scatterv(b, counts_b, displs_b, MPI_DOUBLE, local_b, counts_b[rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -97,7 +99,17 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
     int devCount = 0;
     CUDA_CHECK(cudaGetDeviceCount(&devCount));
     CUDA_CHECK(cudaSetDevice(rank % devCount));
-    if (rank == 0) std::cout << "Available GPUs: " << devCount << std::endl;
+
+    cudaEvent_t startEvent, stopEvent;
+    float elapsed_ms = 0.0f;
+    if (rank == 0) {
+
+        std::cout << "Available GPUs: " << devCount << std::endl;
+
+        cudaEventCreate(&startEvent);
+        cudaEventCreate(&stopEvent);
+        cudaEventRecord(startEvent, 0);
+    }
 
     // Создание CUDA потока и cuBLAS хэндла
     cudaStream_t stream;
@@ -256,9 +268,20 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
         iter++;
     }
 
+
+
     // Сбор результатов
     CUDA_CHECK(cudaMemcpyAsync(local_x, d_x, counts_b[rank] * sizeof(double), cudaMemcpyDeviceToHost, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
+    if (rank == 0) {
+        cudaEventRecord(stopEvent, 0);
+        cudaEventSynchronize(stopEvent);
+        cudaEventElapsedTime(&elapsed_ms, startEvent, stopEvent);
+        std::cout << "MPI+CUDA GPU time: " << elapsed_ms / 1000.0 << " s" << std::endl;
+        cudaEventDestroy(startEvent);
+        cudaEventDestroy(stopEvent);
+    }
+
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gatherv(local_x, counts_b[rank], MPI_DOUBLE, x, counts_b, displs_b, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 

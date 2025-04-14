@@ -103,7 +103,9 @@ extern "C" void BiCGStab2_MPI_CUDA(int N, const double* A, double* x,
     CUDA_CHECK(cudaGetDeviceCount(&devCount));
     CUDA_CHECK(cudaSetDevice(rank % devCount));
     if (rank == 0) std::cout << "Available GPUs: " << devCount << std::endl;
-
+    int currentDev = -1;
+    CUDA_CHECK(cudaGetDevice(&currentDev));
+    std::cout << "Rank " << rank << " is using GPU " << currentDev << std::endl;
     // Замер времени на GPU (на процесс 0)
     cudaEvent_t startEvent, stopEvent;
     float elapsed_ms = 0.0f;

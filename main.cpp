@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <mpi.h>
 #include <cstring>
 #include <numeric>
@@ -18,6 +19,11 @@ extern "C" void BiCGStab2_MPI_OpenMP(int N, const double* A, double* x, const do
     double tol, int maxIter, int* iterCount);
 
 #define TRIALS 2
+
+// Функция для вычисления среднего значения вектора
+double avg(const std::vector<double>& times) {
+    return std::accumulate(times.begin(), times.end(), 0.0) / times.size();
+}
 
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
@@ -47,36 +53,33 @@ int main(int argc, char** argv) {
         }
     }
 
-    double* A = nullptr, * b = nullptr, * x = nullptr;
-    // Все процессы должны выделить память для A, b и x
-    A = new double[N * N];
-    b = new double[N];
-    x = new double[N];
+    double* A = new double[N * N];
+    double* b = new double[N];
+    double* x = new double[N];
     std::memset(x, 0, N * sizeof(double));
 
     if (rank == 0) {
         generateMatrix(A, N);
         generateVector(b, N);
 
-
-        // --- Вывод матрицы A ---
+        // Вывод первых 10 строк и столбцов матрицы (для отладки)
         std::cout << "Matrix A (" << N << "x" << N << "):\n";
-        for (int i = 0; i < 10; ++i) {
-            for (int j = 0; j < 10; ++j) {
+        for (int i = 0; i < std::min(N, 10); ++i) {
+            for (int j = 0; j < std::min(N, 10); ++j) {
                 std::cout << A[i * N + j] << " ";
             }
             std::cout << "\n";
         }
 
-        // --- Вывод вектора b ---
+        // Вывод первых 10 элементов вектора b
         std::cout << "\nVector b (" << N << "):\n";
-        for (int i = 0; i < 10; ++i) {
+        for (int i = 0; i < std::min(N, 10); ++i) {
             std::cout << b[i] << " ";
         }
         std::cout << "\n\n";
     }
 
-    // Передаем данные всем процессам
+    // Передаём данные всем процессам
     MPI_Bcast(A, N * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast(b, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
@@ -118,19 +121,17 @@ int main(int argc, char** argv) {
         }
     }
 
+    // На основном процессе (ранг 0) вычисляем результаты и записываем их в CSV файл
     if (rank == 0) {
-        auto avg = [](const std::vector<double>& times) {
-            return std::accumulate(times.begin(), times.end(), 0.0) / times.size();
-        };
-
         double gflops_cpu = (2.0 * N * N) / (avg(times_cpu) * 1e9);
         double gflops_gpu = (2.0 * N * N) / (avg(times_gpu) * 1e9);
         double gflops_mpi = (2.0 * N * N) / (avg(times_mpi) * 1e9);
         double gflops_mpi_cuda = (2.0 * N * N) / (avg(times_mpi_cuda) * 1e9);
 
-        double speedup_gpu = avg(times_cpu) / avg(times_gpu);
-        double speedup_mpi = avg(times_cpu) / avg(times_mpi);
-        double speedup_mpi_cuda = avg(times_cpu) / avg(times_mpi_cuda);
+        double speedup_gpu = (mode == "cpu") ? 0.0 : avg(times_cpu) / avg(times_gpu);
+        double speedup_mpi = (mode == "cpu") ? 0.0 : avg(times_cpu) / avg(times_mpi);
+        double speedup_mpi_cuda = (mode == "cpu") ? 0.0 : avg(times_cpu) / avg(times_mpi_cuda);
+
         std::cout << "\n--- Experimental Results (averaged over " << TRIALS << " trials) ---" << std::endl;
         if (mode == "cpu")
             std::cout << "CPU: " << avg(times_cpu) * 1000 << " ms, GFLOPS: " << gflops_cpu << std::endl;
@@ -140,8 +141,52 @@ int main(int argc, char** argv) {
             std::cout << "MPI (" << size << " procs): " << avg(times_mpi) * 1000 << " ms, GFLOPS: " << gflops_mpi << ", Speedup: " << speedup_mpi << std::endl;
         else if (mode == "mpi+cuda")
             std::cout << "MPI+CUDA: " << avg(times_mpi_cuda) * 1000 << " ms, GFLOPS: " << gflops_mpi_cuda << ", Speedup: " << speedup_mpi_cuda << std::endl;
+        else if (mode == "mpi+openmp")
+            std::cout << "MPI+OpenMP: " << avg(times_mpi) * 1000 << " ms, GFLOPS: " << gflops_mpi << ", Speedup: " << speedup_mpi << std::endl;
 
-        
+        // Формируем имя CSV файла в зависимости от режима
+        std::string filename;
+        if (mode == "cpu")
+            filename = "results_cpu.csv";
+        else if (mode == "gpu")
+            filename = "results_gpu.csv";
+        else if (mode == "mpi")
+            filename = "results_mpi.csv";
+        else if (mode == "mpi+cuda")
+            filename = "results_mpi_cuda.csv";
+        else if (mode == "mpi+openmp")
+            filename = "results_mpi_openmp.csv";
+        else
+            filename = "results.csv";
+
+        // Открываем файл для дозаписи (append)
+        std::ofstream outFile;
+        outFile.open(filename, std::ios::app);
+        if (!outFile) {
+            std::cerr << "Ошибка открытия файла " << filename << " для записи!" << std::endl;
+        }
+        else {
+            // Если файл пустой – добавляем заголовок
+            std::ifstream inFile(filename);
+            bool fileEmpty = inFile.peek() == std::ifstream::traits_type::eof();
+            inFile.close();
+            if (fileEmpty) {
+                outFile << "Matrix size (N),Max iterations,Process,Average time (ms),GFLOPS,Speedup,Mode\n";
+            }
+
+            if (mode == "cpu")
+                outFile << N << "," << maxIter << "," << size << "," << avg(times_cpu) * 1000 << "," << gflops_cpu << "," << "NA" << "," << mode << "\n";
+            else if (mode == "gpu")
+                outFile << N << "," << maxIter << "," << size << "," << avg(times_gpu) * 1000 << "," << gflops_gpu << "," << speedup_gpu << "," << mode << "\n";
+            else if (mode == "mpi")
+                outFile << N << "," << maxIter << "," << size << "," << avg(times_mpi) * 1000 << "," << gflops_mpi << "," << speedup_mpi << "," << mode << "\n";
+            else if (mode == "mpi+cuda")
+                outFile << N << "," << maxIter << "," << size << "," << avg(times_mpi_cuda) * 1000 << "," << gflops_mpi_cuda << "," << speedup_mpi_cuda << "," << mode << "\n";
+            else if (mode == "mpi+openmp")
+                outFile << N << "," << maxIter << "," << size << "," << avg(times_mpi) * 1000 << "," << gflops_mpi << "," << speedup_mpi << "," << mode << "\n";
+            outFile.close();
+            std::cout << "The results are written to the file: " << filename << std::endl;
+        }
     }
 
     delete[] A;
